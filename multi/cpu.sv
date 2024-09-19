@@ -24,20 +24,45 @@ module cpu (
     logic [31:0] Adr;
     logic [31:0] ReadData;
     logic [31:0] Data;
+    logic [31:0] SrcA;
+    logic [31:0] SrcB;
 
     // Control variables
     logic        IRWrite;
     logic  [1:0] ImmSrc;
     logic  [2:0] ALUControl;
     logic        AdrSrc;
+    logic  [1:0] ResultSrc;
+    logic        RegWrite;
+    logic  [1:0] ALUSrcA;
+    logic  [1:0] ALUSrcB;
 
-    assign dout = ALUOut;
 
     pc pc1(
         .clk    (clk),
         .rst    (rst),
         .PCNext (PCNext),
         .PC     (PC)
+    );
+
+    assign PCNext = Result;
+
+    mux32_4 mux_pc_1 (
+        .sel  (ALUSrcA),
+        .A    (PC)     ,
+        .B    (0)      ,
+        .C    (A)      ,
+        .D    (0)      ,
+        .Q    (SrcA)
+    );
+
+    mux32_4 mux_pc_2 (
+        .sel (ALUSrcB),
+        .A   (0),
+        .B   (ImmExt),
+        .C   (32'h00000004),
+        .D   (0),
+        .Q   (SrcB)
     );
 
     i_d_mem idm1(
@@ -64,35 +89,35 @@ module cpu (
         .Q      (ImmExt)
     );
 
-    reg32 reg_step2(
+    reg32 reg_step2 (
         .clk     (clk),
         .rst     (rst),
         .en      (1'b1),
-        .din     (regdata),
+        .din     (regdata1),
         .dout    (A)
     );
 
-    register_bank (
+    register_bank rb1 (
         .clk    (clk),
         .rst    (rst),
-        .WE3    (),
+        .WE3    (RegWrite),
         .A1     (Instr[19:15]),
         .A2     (),
-        .A3     (),
-        .WD3    (),
+        .A3     (Instr[11:7]),
+        .WD3    (Result),
         .RD1    (regdata1),
         .RD2    ()
     );
 
-    ALU (
+    ALU alu1 (
         .Ctrl   (ALUControl),
-        .SrcA   (A),
-        .SrcB   (ImmExt),
+        .SrcA   (SrcA),
+        .SrcB   (SrcB),
         .Result (ALUResult),
         .zero   ()
     );
 
-    reg32 reg_step3(
+    reg32 reg_step3 (
         .clk     (clk),
         .rst     (rst),
         .en      (1'b1),
@@ -103,16 +128,25 @@ module cpu (
     mux32 mux_ram (
         .sel  (AdrSrc),
         .A    (PC),
-        .B    (ALUOut),
+        .B    (Result),
         .Q    (Adr)
     );
 
-    reg32 reg_step4(
+    reg32 reg_step4 (
         .clk     (clk),
         .rst     (rst),
         .en      (1'b1),
         .din     (ReadData),
         .dout    (Data)
+    );
+    
+    mux32_4 mux_result (
+        .sel (ResultSrc),
+        .A   (ALUOut),
+        .B   (Data),
+        .C   (ALUResult),
+        .D   (0),
+        .Q   (Result)
     );
 
 endmodule
@@ -188,47 +222,47 @@ module i_d_mem (
             mem.delete();
 
             // program in assembly
-            RD[32'h00400000] = 32'h00600413; // addi x8, x0, 6
-            RD[32'h00400004] = 32'h00400493; // addi x9, x0, 4
-            RD[32'h00400008] = 32'h00940933; // add x18, x8, x9
-            RD[32'h0040000C] = 32'h00940933; // add x18, x8, x9
-            RD[32'h00400010] = 32'h409409B3; // sub x19, x8, x9
-            RD[32'h00400014] = 32'h00940933; // add x18, x8, x9
-            RD[32'h00400018] = 32'h409409B3; // sub x19, x8, x9
-            RD[32'h0040001C] = 32'h00500413; // addi x8, x0, 5
-            RD[32'h00400020] = 32'h00500413; // addi x8, x0, 5
-            RD[32'h00400024] = 32'h00200493; // addi x9, x0, 2
-            RD[32'h00400028] = 32'h00940933; // add x18, x8, x9
-            RD[32'h0040002C] = 32'h00940933; // add x18, x8, x9
-            RD[32'h00400030] = 32'h409409B3; // sub x19, x8, x9
-            RD[32'h00400034] = 32'h00940933; // add x18, x8, x9
-            RD[32'h00400038] = 32'h409409B3; // sub x19, x8, x9
-            RD[32'h0040003C] = 32'h00940933; // add x18, x8, x9
-            RD[32'h00400040] = 32'h409409B3; // sub x19, x8, x9
-            RD[32'h00400044] = 32'h00940933; // add x18, x8, x9
-            RD[32'h00400048] = 32'h409409B3; // sub x19, x8, x9
-            RD[32'h0040004C] = 32'h00940933; // add x18, x8, x9
-            RD[32'h00400050] = 32'h409409B3; // sub x19, x8, x9
-            RD[32'h00400054] = 32'h00940933; // add x18, x8, x9
-            RD[32'h00400058] = 32'h409409B3; // sub x19, x8, x9
-            RD[32'h0040005C] = 32'h00940933; // add x18, x8, x9
-            RD[32'h00400060] = 32'h409409B3; // sub x19, x8, x9
-            RD[32'h00400064] = 32'h00940933; // add x18, x8, x9
-            RD[32'h00400068] = 32'h409409B3; // sub x19, x8, x9
-            RD[32'h0040006C] = 32'h00940933; // add x18, x8, x9
-            RD[32'h00400070] = 32'h409409B3; // sub x19, x8, x9
-            RD[32'h00400074] = 32'h00940933; // add x18, x8, x9
-            RD[32'h00400078] = 32'h409409B3; // sub x19, x8, x9
-            RD[32'h0040007C] = 32'h00940933; // add x18, x8, x9
-            RD[32'h00400080] = 32'h409409B3; // sub x19, x8, x9
-            RD[32'h00400084] = 32'h00940933; // add x18, x8, x9
-            RD[32'h00400088] = 32'h409409B3; // sub x19, x8, x9
-            RD[32'h0040008C] = 32'h00940933; // add x18, x8, x9
-            RD[32'h00400090] = 32'h409409B3; // sub x19, x8, x9
-            RD[32'h00400094] = 32'h00940933; // add x18, x8, x9
-            RD[32'h00400098] = 32'h409409B3; // sub x19, x8, x9
-            RD[32'h0040009C] = 32'h00940933; // add x18, x8, x9
-            RD[32'h004000A0] = 32'h409409B3; // sub x19, x8, x9
+            mem[32'h00400000] = 32'h00600413; // addi x8, x0, 6
+            mem[32'h00400004] = 32'h00400493; // addi x9, x0, 4
+            mem[32'h00400008] = 32'h00940933; // add x18, x8, x9
+            mem[32'h0040000C] = 32'h00940933; // add x18, x8, x9
+            mem[32'h00400010] = 32'h409409B3; // sub x19, x8, x9
+            mem[32'h00400014] = 32'h00940933; // add x18, x8, x9
+            mem[32'h00400018] = 32'h409409B3; // sub x19, x8, x9
+            mem[32'h0040001C] = 32'h00500413; // addi x8, x0, 5
+            mem[32'h00400020] = 32'h00500413; // addi x8, x0, 5
+            mem[32'h00400024] = 32'h00200493; // addi x9, x0, 2
+            mem[32'h00400028] = 32'h00940933; // add x18, x8, x9
+            mem[32'h0040002C] = 32'h00940933; // add x18, x8, x9
+            mem[32'h00400030] = 32'h409409B3; // sub x19, x8, x9
+            mem[32'h00400034] = 32'h00940933; // add x18, x8, x9
+            mem[32'h00400038] = 32'h409409B3; // sub x19, x8, x9
+            mem[32'h0040003C] = 32'h00940933; // add x18, x8, x9
+            mem[32'h00400040] = 32'h409409B3; // sub x19, x8, x9
+            mem[32'h00400044] = 32'h00940933; // add x18, x8, x9
+            mem[32'h00400048] = 32'h409409B3; // sub x19, x8, x9
+            mem[32'h0040004C] = 32'h00940933; // add x18, x8, x9
+            mem[32'h00400050] = 32'h409409B3; // sub x19, x8, x9
+            mem[32'h00400054] = 32'h00940933; // add x18, x8, x9
+            mem[32'h00400058] = 32'h409409B3; // sub x19, x8, x9
+            mem[32'h0040005C] = 32'h00940933; // add x18, x8, x9
+            mem[32'h00400060] = 32'h409409B3; // sub x19, x8, x9
+            mem[32'h00400064] = 32'h00940933; // add x18, x8, x9
+            mem[32'h00400068] = 32'h409409B3; // sub x19, x8, x9
+            mem[32'h0040006C] = 32'h00940933; // add x18, x8, x9
+            mem[32'h00400070] = 32'h409409B3; // sub x19, x8, x9
+            mem[32'h00400074] = 32'h00940933; // add x18, x8, x9
+            mem[32'h00400078] = 32'h409409B3; // sub x19, x8, x9
+            mem[32'h0040007C] = 32'h00940933; // add x18, x8, x9
+            mem[32'h00400080] = 32'h409409B3; // sub x19, x8, x9
+            mem[32'h00400084] = 32'h00940933; // add x18, x8, x9
+            mem[32'h00400088] = 32'h409409B3; // sub x19, x8, x9
+            mem[32'h0040008C] = 32'h00940933; // add x18, x8, x9
+            mem[32'h00400090] = 32'h409409B3; // sub x19, x8, x9
+            mem[32'h00400094] = 32'h00940933; // add x18, x8, x9
+            mem[32'h00400098] = 32'h409409B3; // sub x19, x8, x9
+            mem[32'h0040009C] = 32'h00940933; // add x18, x8, x9
+            mem[32'h004000A0] = 32'h409409B3; // sub x19, x8, x9
         end
     end
 
@@ -320,5 +354,27 @@ module mux32 (
 );
 
     assign Q = sel ? B : A;
+
+endmodule
+
+
+module mux32_4 (
+    input         [1:0] sel,
+    input        [31:0] A,
+    input        [31:0] B,
+    input        [31:0] C,
+    input        [31:0] D,
+    output logic [31:0] Q 
+);
+
+    always_comb begin
+        case (sel)
+            2'b00: Q = A;
+            2'b01: Q = B;
+            2'b10: Q = C;
+            2'b11: Q = D;
+            default: Q = 32'hDEADBEEF;
+        endcase
+    end
 
 endmodule
