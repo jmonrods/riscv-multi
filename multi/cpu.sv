@@ -27,6 +27,7 @@ module cpu (
     logic [31:0] Data;
     logic [31:0] SrcA;
     logic [31:0] SrcB;
+    logic [31:0] OldPC;
 
     // Control variables
     logic        IRWrite;
@@ -52,7 +53,7 @@ module cpu (
     mux32_4 mux_pc_1 (
         .sel  (ALUSrcA),
         .A    (PC)     ,
-        .B    (0)      ,
+        .B    (OldPC)  ,
         .C    (A)      ,
         .D    (0)      ,
         .Q    (SrcA)
@@ -77,12 +78,20 @@ module cpu (
         .RD    (ReadData)
     );
 
-    reg32 reg_step1(
+    reg32 reg_step1a(
         .clk     (clk),
         .rst     (rst),
         .en      (IRWrite),
         .din     (ReadData),
         .dout    (Instr)
+    );
+
+    reg32 reg_step1b(
+        .clk     (clk),
+        .rst     (rst),
+        .en      (IRWrite),
+        .din     (PC),
+        .dout    (OldPC)
     );
 
     Extend ext1(
@@ -91,7 +100,7 @@ module cpu (
         .Q      (ImmExt)
     );
 
-    reg32 reg_step2 (
+    reg32 reg_step2a (
         .clk     (clk),
         .rst     (rst),
         .en      (1'b1),
@@ -99,7 +108,7 @@ module cpu (
         .dout    (A)
     );
 
-    reg32 reg_step2 (
+    reg32 reg_step2b (
         .clk     (clk),
         .rst     (rst),
         .en      (1'b1),
