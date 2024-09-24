@@ -18,6 +18,7 @@ module cpu (
     logic [31:0] Instr;
     logic [31:0] ImmExt;
     logic [31:0] regdata1;
+    logic [31:0] regdata2;
     logic [31:0] A;
     logic [31:0] ALUResult;
     logic [31:0] ALUOut;
@@ -36,6 +37,7 @@ module cpu (
     logic        RegWrite;
     logic  [1:0] ALUSrcA;
     logic  [1:0] ALUSrcB;
+    logic        MemWrite;
 
 
     pc pc1(
@@ -58,7 +60,7 @@ module cpu (
 
     mux32_4 mux_pc_2 (
         .sel (ALUSrcB),
-        .A   (0),
+        .A   (WriteData),
         .B   (ImmExt),
         .C   (32'h00000004),
         .D   (0),
@@ -68,10 +70,10 @@ module cpu (
     i_d_mem idm1(
         .clk   (clk),
         .rst   (rst),
-        .WE    (),
+        .WE    (MemWrite),
         .RE    (1'b1),
         .A     (Adr),
-        .WD    (),
+        .WD    (WriteData),
         .RD    (ReadData)
     );
 
@@ -97,16 +99,24 @@ module cpu (
         .dout    (A)
     );
 
+    reg32 reg_step2 (
+        .clk     (clk),
+        .rst     (rst),
+        .en      (1'b1),
+        .din     (regdata2),
+        .dout    (WriteData)
+    );
+
     register_bank rb1 (
         .clk    (clk),
         .rst    (rst),
         .WE3    (RegWrite),
         .A1     (Instr[19:15]),
-        .A2     (),
+        .A2     (Instr[24:20]),
         .A3     (Instr[11:7]),
         .WD3    (Result),
         .RD1    (regdata1),
-        .RD2    ()
+        .RD2    (regdata2)
     );
 
     ALU alu1 (
