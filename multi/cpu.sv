@@ -23,6 +23,7 @@ module cpu (
     logic [31:0] ALUResult;
     logic [31:0] ALUOut;
     logic [31:0] Adr;
+    logic [31:0] WriteData;
     logic [31:0] ReadData;
     logic [31:0] Data;
     logic [31:0] SrcA;
@@ -441,11 +442,11 @@ module control_unit (
     );
 
     alu_decoder aludec1(
-        ALUOp       (ALUop),
-        funct3      (funct3),
-        op_bit5     (op[5]),
-        funct7_bit5 (funct7_bit5),
-        ALUControl  (ALUControl)
+        .ALUOp       (ALUop),
+        .funct3      (funct3),
+        .op_bit5     (op[5]),
+        .funct7_bit5 (funct7_bit5),
+        .ALUControl  (ALUControl)
     );
 
     instr_decoder instrdec1(
@@ -471,7 +472,7 @@ module main_fsm(
     output logic [1:0] ALUop
 );
 
-    typedef enum State {S0, S1, S2, S3, S4, S5, S6, S7, S8, S9, S10};
+    typedef enum {S0, S1, S2, S3, S4, S5, S6, S7, S8, S9, S10} State;
 
     State current_state;
     State next_state;
@@ -588,8 +589,8 @@ endmodule : alu_decoder
 
 
 module instr_decoder(
-    input  [6:0] op,
-    output [1:0] ImmSrc
+    input        [6:0] op,
+    output logic [1:0] ImmSrc
 );
 
     always_comb begin
