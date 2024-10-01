@@ -397,3 +397,212 @@ module mux32_4 (
     end
 
 endmodule
+
+
+module control_unit (
+    input              rst,
+    input              clk,
+    input        [6:0] op,
+    input        [2:0] funct3,
+    input              funct7_bit5,
+    input              zero,
+    output logic       PCWrite,
+    output logic       AdrSrc,
+    output logic       MemWrite,
+    output logic       IRWrite,
+    output logic [1:0] ResultSrc,
+    output logic [2:0] ALUControl,
+    output logic [1:0] ALUSrcA,
+    output logic [1:0] ALUSrcB,
+    output logic [1:0] ImmSrc,
+    output logic       RegWrite
+);
+
+    logic        Branch;
+    logic        PCUpdate;
+    logic  [1:0] ALUop;
+
+    assign PCWrite = (PCUpdate | (zero & Branch));
+
+
+    main_fsm fsm1(
+        .rst        (rst),
+        .clk        (clk),
+        .op         (op),
+        .Branch     (Branch),
+        .PCUpdate   (PCUpdate),
+        .RegWrite   (RegWrite),
+        .IRWrite    (IRWrite),
+        .ResultSrc  (ResultSrc),
+        .ALUSrcA    (ALUSrcA),
+        .ALUSrcB    (ALUSrcB),
+        .AdrSrc     (AdrSrc),
+        .ALUop      (ALUop)
+    );
+
+    alu_decoder aludec1(
+        ALUOp       (ALUop),
+        funct3      (funct3),
+        op_bit5     (op[5]),
+        funct7_bit5 (funct7_bit5),
+        ALUControl  (ALUControl)
+    );
+
+    instr_decoder instrdec1(
+        .op         (op),
+        .ImmSrc     (ImmSrc)
+    );
+
+endmodule
+
+
+module main_fsm(
+    input              rst,
+    input              clk,
+    input        [6:0] op,
+    output logic       Branch,
+    output logic       PCUpdate,
+    output logic       RegWrite,
+    output logic       IRWrite,
+    output logic [1:0] ResultSrc,
+    output logic [1:0] ALUSrcA,
+    output logic [1:0] ALUSrcB,
+    output logic       AdrSrc,
+    output logic [1:0] ALUop
+);
+
+    typedef enum State {S0, S1, S2, S3, S4, S5, S6, S7, S8, S9, S10};
+
+    State current_state;
+    State next_state;
+
+    always_ff @(posedge clk) begin
+
+        if (rst) current_state <= S0;
+        else begin
+            case (current_state)
+                S0:
+                begin : Fetch 
+                    AdrSrc     <= 1'b0;
+                    IRWrite    <= 1'b1;
+                    Branch     <= 1'b0;
+                    PCUpdate   <= 1'b1;
+                    RegWrite   <= 1'b0;
+                    ResultSrc  <= 2'b10;
+                    ALUSrcA    <= 2'b00;
+                    ALUSrcB    <= 2'b10;
+                    ALUop      <= 2'b00;
+                    next_state <= S1;
+                end : Fetch
+                S1:
+                begin : Decode
+                    AdrSrc     <= 1'b0;
+                    IRWrite    <= 1'b0;
+                    Branch     <= 1'b0;
+                    PCUpdate   <= 1'b0;
+                    RegWrite   <= 1'b0;
+                    ResultSrc  <= 2'b00;
+                    ALUSrcA    <= 2'b00;
+                    ALUSrcB    <= 2'b00;
+                    ALUop      <= 2'b00;
+                    case (op)
+                        7'b0000011: next_state <= S2; // lw
+                    endcase
+                end : Decode
+                S2:
+                begin : MemAdr
+                    AdrSrc     <= 1'b0;
+                    IRWrite    <= 1'b0;
+                    Branch     <= 1'b0;
+                    PCUpdate   <= 1'b0;
+                    RegWrite   <= 1'b0;
+                    ResultSrc  <= 2'b00;
+                    ALUSrcA    <= 2'b10;
+                    ALUSrcB    <= 2'b01;
+                    ALUop      <= 2'b00;
+                    case (op)
+                        7'b0000011: next_state <= S3; // lw
+                    endcase
+                end : MemAdr
+                S3:
+                begin : MemRead
+                    AdrSrc     <= 1'b1;
+                    IRWrite    <= 1'b0;
+                    Branch     <= 1'b0;
+                    PCUpdate   <= 1'b0;
+                    RegWrite   <= 1'b0;
+                    ResultSrc  <= 2'b00;
+                    ALUSrcA    <= 2'b00;
+                    ALUSrcB    <= 2'b00;
+                    ALUop      <= 2'b00;
+                    next_state <= S4;
+                end : MemRead
+                S4:
+                begin : MemWB
+                    AdrSrc     <= 1'b0;
+                    IRWrite    <= 1'b0;
+                    Branch     <= 1'b0;
+                    PCUpdate   <= 1'b0;
+                    RegWrite   <= 1'b1;
+                    ResultSrc  <= 2'b01;
+                    ALUSrcA    <= 2'b00;
+                    ALUSrcB    <= 2'b00;
+                    ALUop      <= 2'b00;
+                    next_state <= S0;
+                end : MemWB
+            endcase
+        end
+    end
+
+    always_ff @(posedge clk) current_state <= next_state;
+
+endmodule : main_fsm
+
+
+module alu_decoder (
+    input              ALUOp,
+    input              funct3,
+    input              op_bit5,
+    input              funct7_bit5,
+    output logic [2:0] ALUControl
+);
+
+    always_comb begin
+
+        casex ({ALUOp,funct3,op_bit5,funct7_bit5})
+            7'b00xxxxx: ALUControl = 3'b000; // lw, sw
+            7'b01xxxxx: ALUControl = 3'b001; // beq
+            7'b1000000: ALUControl = 3'b000; // add
+            7'b1000001: ALUControl = 3'b000; // add
+            7'b1000010: ALUControl = 3'b000; // add
+            7'b1000011: ALUControl = 3'b001; // sub
+            7'b10010xx: ALUControl = 3'b101; // slt
+            7'b10110xx: ALUControl = 3'b011; // or
+            7'b10111xx: ALUControl = 3'b010; // and
+            default:    ALUControl = 3'b000;
+        endcase
+
+    end
+
+endmodule : alu_decoder
+
+
+module instr_decoder(
+    input  [6:0] op,
+    output [1:0] ImmSrc
+);
+
+    always_comb begin
+
+        case (op)
+            3:       ImmSrc = 2'b00; // lw
+            35:      ImmSrc = 2'b01; // sw
+            51:      ImmSrc = 2'b00; // R-type
+            99:      ImmSrc = 2'b10; // beq
+            default: ImmSrc = 2'b00; // not used
+        endcase
+
+    end
+
+endmodule : instr_decoder
+
