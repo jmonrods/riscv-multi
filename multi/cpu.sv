@@ -204,15 +204,11 @@ module register_bank (
     // array of static memory
     logic [31:0] mem[32];
 
-    // reset logic
+    // write logic
     int i;
     always_ff @(posedge clk) begin
         if (rst) for (i = 0; i<32; i++) mem[i] <= 0;
-    end
-
-    // write logic
-    always_ff @ (posedge clk) begin
-        if (WE3 & !rst) mem[A3] <= WD3;
+        else if (WE3) mem[A3] <= WD3;
     end
 
     // read logic (combinational)
@@ -284,12 +280,11 @@ module i_d_mem (
             mem[32'h0040009C] = 32'h00940933; // add x18, x8, x9
             mem[32'h004000A0] = 32'h409409B3; // sub x19, x8, x9
         end
-    end
-
-    // write logic
-    always_ff @(posedge clk) begin
-        if (WE & !rst) begin
-            mem[A] = WD;
+        else
+        begin // write logic
+            if (WE) begin
+                mem[A] = WD;
+            end
         end
     end
 
