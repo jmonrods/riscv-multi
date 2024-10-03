@@ -428,6 +428,7 @@ module control_unit (
         .Branch     (Branch),
         .PCUpdate   (PCUpdate),
         .RegWrite   (RegWrite),
+        .MemWrite   (MemWrite),
         .IRWrite    (IRWrite),
         .ResultSrc  (ResultSrc),
         .ALUSrcA    (ALUSrcA),
@@ -458,6 +459,7 @@ module main_fsm(
     input        [6:0] op,
     output logic       Branch,
     output logic       PCUpdate,
+    output logic       MemWrite,
     output logic       RegWrite,
     output logic       IRWrite,
     output logic [1:0] ResultSrc,
@@ -484,6 +486,7 @@ module main_fsm(
                     Branch     <= 1'b0;
                     PCUpdate   <= 1'b1;
                     RegWrite   <= 1'b0;
+                    MemWrite   <= 1'b0;
                     ResultSrc  <= 2'b10;
                     ALUSrcA    <= 2'b00;
                     ALUSrcB    <= 2'b10;
@@ -497,12 +500,14 @@ module main_fsm(
                     Branch     <= 1'b0;
                     PCUpdate   <= 1'b0;
                     RegWrite   <= 1'b0;
+                    MemWrite   <= 1'b0;
                     ResultSrc  <= 2'b00;
                     ALUSrcA    <= 2'b00;
                     ALUSrcB    <= 2'b00;
                     ALUop      <= 2'b00;
                     case (op)
                         7'b0000011: next_state <= S2; // lw
+                        7'b0100011: next_state <= S2; // sw
                     endcase
                 end : Decode
                 S2:
@@ -512,12 +517,14 @@ module main_fsm(
                     Branch     <= 1'b0;
                     PCUpdate   <= 1'b0;
                     RegWrite   <= 1'b0;
+                    MemWrite   <= 1'b0;
                     ResultSrc  <= 2'b00;
                     ALUSrcA    <= 2'b10;
                     ALUSrcB    <= 2'b01;
                     ALUop      <= 2'b00;
                     case (op)
                         7'b0000011: next_state <= S3; // lw
+                        7'b0100011: next_state <= S5; // sw
                     endcase
                 end : MemAdr
                 S3:
@@ -527,6 +534,7 @@ module main_fsm(
                     Branch     <= 1'b0;
                     PCUpdate   <= 1'b0;
                     RegWrite   <= 1'b0;
+                    MemWrite   <= 1'b0;
                     ResultSrc  <= 2'b00;
                     ALUSrcA    <= 2'b00;
                     ALUSrcB    <= 2'b00;
@@ -540,12 +548,27 @@ module main_fsm(
                     Branch     <= 1'b0;
                     PCUpdate   <= 1'b0;
                     RegWrite   <= 1'b1;
+                    MemWrite   <= 1'b0;
                     ResultSrc  <= 2'b01;
                     ALUSrcA    <= 2'b00;
                     ALUSrcB    <= 2'b00;
                     ALUop      <= 2'b00;
                     next_state <= S0;
                 end : MemWB
+                S5: 
+                begin : MemWrite
+                    AdrSrc     <= 1'b1;
+                    IRWrite    <= 1'b0;
+                    Branch     <= 1'b0;
+                    PCUpdate   <= 1'b0;
+                    RegWrite   <= 1'b0;
+                    MemWrite   <= 1'b1;
+                    ResultSrc  <= 2'b00;
+                    ALUSrcA    <= 2'b00;
+                    ALUSrcB    <= 2'b00;
+                    ALUop      <= 2'b00;
+                    next_state <= S4;
+                end : MemWrite
             endcase
         end
     end
