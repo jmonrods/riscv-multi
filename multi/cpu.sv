@@ -508,6 +508,7 @@ module main_fsm(
                     case (op)
                         7'b0000011: next_state <= S2; // lw
                         7'b0100011: next_state <= S2; // sw
+                        7'b0110011: next_state <= S6; // R-type
                     endcase
                 end : Decode
                 S2:
@@ -569,6 +570,34 @@ module main_fsm(
                     ALUop      <= 2'b00;
                     next_state <= S0;
                 end : S5_MemWrite
+                S6: 
+                begin : ExecuteR
+                    AdrSrc     <= 1'b0;
+                    IRWrite    <= 1'b0;
+                    Branch     <= 1'b0;
+                    PCUpdate   <= 1'b0;
+                    RegWrite   <= 1'b0;
+                    MemWrite   <= 1'b0;
+                    ResultSrc  <= 2'b00;
+                    ALUSrcA    <= 2'b10;
+                    ALUSrcB    <= 2'b00;
+                    ALUop      <= 2'b10;
+                    next_state <= S7;
+                end : ExecuteR
+                S7: 
+                begin : ALUWB
+                    AdrSrc     <= 1'b0;
+                    IRWrite    <= 1'b0;
+                    Branch     <= 1'b0;
+                    PCUpdate   <= 1'b0;
+                    RegWrite   <= 1'b1;
+                    MemWrite   <= 1'b0;
+                    ResultSrc  <= 2'b00;
+                    ALUSrcA    <= 2'b00;
+                    ALUSrcB    <= 2'b00;
+                    ALUop      <= 2'b00;
+                    next_state <= S0;
+                end : ALUWB
             endcase
         end
     end
