@@ -556,7 +556,7 @@ module main_fsm(
                     next_state <= S0;
                 end : MemWB
                 S5: 
-                begin : MemWrite
+                begin : S5_MemWrite
                     AdrSrc     <= 1'b1;
                     IRWrite    <= 1'b0;
                     Branch     <= 1'b0;
@@ -567,8 +567,8 @@ module main_fsm(
                     ALUSrcA    <= 2'b00;
                     ALUSrcB    <= 2'b00;
                     ALUop      <= 2'b00;
-                    next_state <= S4;
-                end : MemWrite
+                    next_state <= S0;
+                end : S5_MemWrite
             endcase
         end
     end
