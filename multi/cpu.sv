@@ -509,6 +509,7 @@ module main_fsm(
                         7'b0000011: next_state <= S2;  // lw
                         7'b0100011: next_state <= S2;  // sw
                         7'b0110011: next_state <= S6;  // R-type
+                        7'b0010011: next_state <= S8;  // I-type
                         7'b1100011: next_state <= S10; // beq
                     endcase
                 end : Decode
@@ -599,6 +600,20 @@ module main_fsm(
                     ALUop      <= 2'b00;
                     next_state <= S0;
                 end : ALUWB
+                S8: 
+                begin : ExecuteI
+                    AdrSrc     <= 1'b0;
+                    IRWrite    <= 1'b0;
+                    Branch     <= 1'b0;
+                    PCUpdate   <= 1'b0;
+                    RegWrite   <= 1'b0;
+                    MemWrite   <= 1'b0;
+                    ResultSrc  <= 2'b00;
+                    ALUSrcA    <= 2'b10;
+                    ALUSrcB    <= 2'b01;
+                    ALUop      <= 2'b10;
+                    next_state <= S7;
+                end : ExecuteI
                 S10: 
                 begin : BEQ
                     AdrSrc     <= 1'b0;
