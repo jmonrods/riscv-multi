@@ -37,6 +37,7 @@ module cpu (
     logic        AdrSrc;
     logic  [1:0] ResultSrc;
     logic        RegWrite;
+    logic        PCWrite;
     logic  [1:0] ALUSrcA;
     logic  [1:0] ALUSrcB;
     logic        MemWrite;
@@ -45,6 +46,7 @@ module cpu (
     pc pc1(
         .clk    (clk),
         .rst    (rst),
+        .en     (PCWrite),
         .PCNext (PCNext),
         .PC     (PC)
     );
@@ -79,7 +81,7 @@ module cpu (
         .RD    (ReadData)
     );
 
-    reg32 reg_step1a(
+    reg32 reg_fetch_instr(
         .clk     (clk),
         .rst     (rst),
         .en      (IRWrite),
@@ -87,7 +89,7 @@ module cpu (
         .dout    (Instr)
     );
 
-    reg32 reg_step1b(
+    reg32 reg_fetch_pc(
         .clk     (clk),
         .rst     (rst),
         .en      (IRWrite),
@@ -101,7 +103,7 @@ module cpu (
         .Q      (ImmExt)
     );
 
-    reg32 reg_step2a (
+    reg32 reg_data_rs1 (
         .clk     (clk),
         .rst     (rst),
         .en      (1'b1),
@@ -109,7 +111,7 @@ module cpu (
         .dout    (A)
     );
 
-    reg32 reg_step2b (
+    reg32 reg_data_rs2 (
         .clk     (clk),
         .rst     (rst),
         .en      (1'b1),
@@ -134,10 +136,10 @@ module cpu (
         .SrcA   (SrcA),
         .SrcB   (SrcB),
         .Result (ALUResult),
-        .zero   ()
+        .zero   (zero)
     );
 
-    reg32 reg_step3 (
+    reg32 reg_execute (
         .clk     (clk),
         .rst     (rst),
         .en      (1'b1),
@@ -152,7 +154,7 @@ module cpu (
         .Q    (Adr)
     );
 
-    reg32 reg_step4 (
+    reg32 reg_readdata (
         .clk     (clk),
         .rst     (rst),
         .en      (1'b1),
@@ -169,6 +171,25 @@ module cpu (
         .Q   (Result)
     );
 
+    control_unit control1 (
+        .rst           (rst),
+        .clk           (clk),
+        .op            (Instr[6:0]),
+        .funct3        (Instr[14:12]),
+        .funct7_bit5   (Instr[30]),
+        .zero          (zero),
+        .PCWrite       (PCWrite),
+        .AdrSrc        (AdrSrc),
+        .MemWrite      (MemWrite),
+        .IRWrite       (IRWrite),
+        .ResultSrc     (ResultSrc),
+        .ALUControl    (ALUControl),
+        .ALUSrcA       (ALUSrcA),
+        .ALUSrcB       (ALUSrcB),
+        .ImmSrc        (ImmSrc),
+        .RegWrite      (RegWrite)
+    );
+
 endmodule
 
 
@@ -176,13 +197,15 @@ endmodule
 module pc ( 
     input               clk,
     input               rst,
+    input               en,
     input        [31:0] PCNext,
     output logic [31:0] PC
 );
 
     always_ff @ (posedge clk) begin
         if (rst) PC <= 32'h00400000; // text segment
-        else PC <= PCNext;
+        else if (en) PC <= PCNext;
+        else PC <= PC;
     end
 
 endmodule
@@ -303,7 +326,7 @@ module reg32 (
 );
 
     always_ff @ (posedge clk) begin
-        if      (rst) dout <= 32'h00400000; // text segment
+        if      (rst) dout <= 32'h00000000;
         else if (en)  dout <= din;
         else          dout <= dout;
     end
@@ -388,7 +411,6 @@ module mux32_4 (
             2'b01: Q = B;
             2'b10: Q = C;
             2'b11: Q = D;
-            default: Q = 32'hDEADBEEF;
         endcase
     end
 
@@ -476,7 +498,19 @@ module main_fsm(
 
     always_ff @(posedge clk) begin
 
-        if (rst) current_state <= S0;
+        if (rst) begin
+            AdrSrc     <= 1'b0;
+            IRWrite    <= 1'b0;
+            Branch     <= 1'b0;
+            PCUpdate   <= 1'b0;
+            RegWrite   <= 1'b0;
+            MemWrite   <= 1'b0;
+            ResultSrc  <= 2'b00;
+            ALUSrcA    <= 2'b00;
+            ALUSrcB    <= 2'b00;
+            ALUop      <= 2'b00;
+            next_state <= S0;
+        end
         else begin
             case (current_state)
                 S0:
@@ -647,14 +681,17 @@ module main_fsm(
         end
     end
 
-    always_ff @(posedge clk) current_state <= next_state;
+    always_ff @(posedge clk) begin
+        if (rst) current_state <= S0;
+        else current_state <= next_state;
+    end
 
 endmodule : main_fsm
 
 
 module alu_decoder (
-    input              ALUOp,
-    input              funct3,
+    input        [1:0] ALUOp,
+    input        [2:0] funct3,
     input              op_bit5,
     input              funct7_bit5,
     output logic [2:0] ALUControl
