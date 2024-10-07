@@ -7,16 +7,15 @@
 `timescale 1ns/1ps
 
 module cpu (
-    input               clk,
-    input               rst,
-    output logic [31:0] Result
+    input  clk,
+    input  rst,
+    output logic [31:0] Result,
+    output logic [31:0] Instr,
+    output logic [31:0] PC
 );
 
     // Data variables
     logic [31:0] PCNext;
-    logic [31:0] PC;
-    logic [31:0] Instr;
-    logic [31:0] ImmExt;
     logic [31:0] regdata1;
     logic [31:0] regdata2;
     logic [31:0] A;
@@ -29,6 +28,7 @@ module cpu (
     logic [31:0] SrcA;
     logic [31:0] SrcB;
     logic [31:0] OldPC;
+    logic [31:0] ImmExt;
 
     // Control variables
     logic        IRWrite;
@@ -312,7 +312,10 @@ module i_d_mem (
     end
 
     // read logic (combinational)
-    assign RD = (RE & !rst) ? mem[A] : 32'hDEADBEEF;
+    always_comb begin
+        if (RE & !rst) RD = mem[A];
+        else           RD = 32'hDEADBEEF;
+    end
 
 endmodule
 
@@ -496,194 +499,193 @@ module main_fsm(
     State current_state;
     State next_state;
 
-    always_ff @(posedge clk) begin
+    // transition logic
+    always_comb begin
 
-        if (rst) begin
-            AdrSrc     <= 1'b0;
-            IRWrite    <= 1'b0;
-            Branch     <= 1'b0;
-            PCUpdate   <= 1'b0;
-            RegWrite   <= 1'b0;
-            MemWrite   <= 1'b0;
-            ResultSrc  <= 2'b00;
-            ALUSrcA    <= 2'b00;
-            ALUSrcB    <= 2'b00;
-            ALUop      <= 2'b00;
-            next_state <= S0;
-        end
-        else begin
-            case (current_state)
-                S0:
-                begin : Fetch 
-                    AdrSrc     <= 1'b0;
-                    IRWrite    <= 1'b1;
-                    Branch     <= 1'b0;
-                    PCUpdate   <= 1'b1;
-                    RegWrite   <= 1'b0;
-                    MemWrite   <= 1'b0;
-                    ResultSrc  <= 2'b10;
-                    ALUSrcA    <= 2'b00;
-                    ALUSrcB    <= 2'b10;
-                    ALUop      <= 2'b00;
-                    next_state <= S1;
-                end : Fetch
-                S1:
-                begin : Decode
-                    AdrSrc     <= 1'b0;
-                    IRWrite    <= 1'b0;
-                    Branch     <= 1'b0;
-                    PCUpdate   <= 1'b0;
-                    RegWrite   <= 1'b0;
-                    MemWrite   <= 1'b0;
-                    ResultSrc  <= 2'b00;
-                    ALUSrcA    <= 2'b01;
-                    ALUSrcB    <= 2'b01;
-                    ALUop      <= 2'b00;
-                    case (op)
-                        7'b0000011: next_state <= S2;  // lw
-                        7'b0100011: next_state <= S2;  // sw
-                        7'b0110011: next_state <= S6;  // R-type
-                        7'b0010011: next_state <= S8;  // I-type
-                        7'b1101111: next_state <= S9;  // jal
-                        7'b1100011: next_state <= S10; // beq
-                    endcase
-                end : Decode
-                S2:
-                begin : MemAdr
-                    AdrSrc     <= 1'b0;
-                    IRWrite    <= 1'b0;
-                    Branch     <= 1'b0;
-                    PCUpdate   <= 1'b0;
-                    RegWrite   <= 1'b0;
-                    MemWrite   <= 1'b0;
-                    ResultSrc  <= 2'b00;
-                    ALUSrcA    <= 2'b10;
-                    ALUSrcB    <= 2'b01;
-                    ALUop      <= 2'b00;
-                    case (op)
-                        7'b0000011: next_state <= S3; // lw
-                        7'b0100011: next_state <= S5; // sw
-                    endcase
-                end : MemAdr
-                S3:
-                begin : MemRead
-                    AdrSrc     <= 1'b1;
-                    IRWrite    <= 1'b0;
-                    Branch     <= 1'b0;
-                    PCUpdate   <= 1'b0;
-                    RegWrite   <= 1'b0;
-                    MemWrite   <= 1'b0;
-                    ResultSrc  <= 2'b00;
-                    ALUSrcA    <= 2'b00;
-                    ALUSrcB    <= 2'b00;
-                    ALUop      <= 2'b00;
-                    next_state <= S4;
-                end : MemRead
-                S4:
-                begin : MemWB
-                    AdrSrc     <= 1'b0;
-                    IRWrite    <= 1'b0;
-                    Branch     <= 1'b0;
-                    PCUpdate   <= 1'b0;
-                    RegWrite   <= 1'b1;
-                    MemWrite   <= 1'b0;
-                    ResultSrc  <= 2'b01;
-                    ALUSrcA    <= 2'b00;
-                    ALUSrcB    <= 2'b00;
-                    ALUop      <= 2'b00;
-                    next_state <= S0;
-                end : MemWB
-                S5: 
-                begin : S5_MemWrite
-                    AdrSrc     <= 1'b1;
-                    IRWrite    <= 1'b0;
-                    Branch     <= 1'b0;
-                    PCUpdate   <= 1'b0;
-                    RegWrite   <= 1'b0;
-                    MemWrite   <= 1'b1;
-                    ResultSrc  <= 2'b00;
-                    ALUSrcA    <= 2'b00;
-                    ALUSrcB    <= 2'b00;
-                    ALUop      <= 2'b00;
-                    next_state <= S0;
-                end : S5_MemWrite
-                S6: 
-                begin : ExecuteR
-                    AdrSrc     <= 1'b0;
-                    IRWrite    <= 1'b0;
-                    Branch     <= 1'b0;
-                    PCUpdate   <= 1'b0;
-                    RegWrite   <= 1'b0;
-                    MemWrite   <= 1'b0;
-                    ResultSrc  <= 2'b00;
-                    ALUSrcA    <= 2'b10;
-                    ALUSrcB    <= 2'b00;
-                    ALUop      <= 2'b10;
-                    next_state <= S7;
-                end : ExecuteR
-                S7: 
-                begin : ALUWB
-                    AdrSrc     <= 1'b0;
-                    IRWrite    <= 1'b0;
-                    Branch     <= 1'b0;
-                    PCUpdate   <= 1'b0;
-                    RegWrite   <= 1'b1;
-                    MemWrite   <= 1'b0;
-                    ResultSrc  <= 2'b00;
-                    ALUSrcA    <= 2'b00;
-                    ALUSrcB    <= 2'b00;
-                    ALUop      <= 2'b00;
-                    next_state <= S0;
-                end : ALUWB
-                S8: 
-                begin : ExecuteI
-                    AdrSrc     <= 1'b0;
-                    IRWrite    <= 1'b0;
-                    Branch     <= 1'b0;
-                    PCUpdate   <= 1'b0;
-                    RegWrite   <= 1'b0;
-                    MemWrite   <= 1'b0;
-                    ResultSrc  <= 2'b00;
-                    ALUSrcA    <= 2'b10;
-                    ALUSrcB    <= 2'b01;
-                    ALUop      <= 2'b10;
-                    next_state <= S7;
-                end : ExecuteI
-                S9: 
-                begin : JAL
-                    AdrSrc     <= 1'b0;
-                    IRWrite    <= 1'b0;
-                    Branch     <= 1'b0;
-                    PCUpdate   <= 1'b1;
-                    RegWrite   <= 1'b0;
-                    MemWrite   <= 1'b0;
-                    ResultSrc  <= 2'b00;
-                    ALUSrcA    <= 2'b01;
-                    ALUSrcB    <= 2'b10;
-                    ALUop      <= 2'b00;
-                    next_state <= S7;
-                end : JAL
-                S10: 
-                begin : BEQ
-                    AdrSrc     <= 1'b0;
-                    IRWrite    <= 1'b0;
-                    Branch     <= 1'b1;
-                    PCUpdate   <= 1'b0;
-                    RegWrite   <= 1'b1;
-                    MemWrite   <= 1'b0;
-                    ResultSrc  <= 2'b00;
-                    ALUSrcA    <= 2'b10;
-                    ALUSrcB    <= 2'b00;
-                    ALUop      <= 2'b01;
-                    next_state <= S0;
-                end : BEQ
+        case (current_state)
+            S0: next_state = S1;
+            S1:
+            case (op)
+                7'b0000011: next_state = S2;  // lw
+                7'b0100011: next_state = S2;  // sw
+                7'b0110011: next_state = S6;  // R-type
+                7'b0010011: next_state = S8;  // I-type
+                7'b1101111: next_state = S9;  // jal
+                7'b1100011: next_state = S10; // beq
+                default:    next_state = S0;
             endcase
-        end
+            S2:
+            case (op)
+                7'b0000011: next_state = S3; // lw
+                7'b0100011: next_state = S5; // sw
+                default:    next_state = S0;
+            endcase
+            S3: next_state  = S4;
+            S4: next_state  = S0;
+            S5: next_state  = S0;
+            S6: next_state  = S7;
+            S7: next_state  = S0;
+            S8: next_state  = S7;
+            S9: next_state  = S7;
+            S10: next_state = S0;
+        endcase
     end
 
+    // state memory
     always_ff @(posedge clk) begin
         if (rst) current_state <= S0;
-        else current_state <= next_state;
+        else     current_state <= next_state;
+    end
+
+    // output logic
+    // transition logic
+    always_comb begin
+
+        case (current_state)
+            S0:
+            begin : Fetch 
+                AdrSrc     = 1'b0;
+                IRWrite    = 1'b1;
+                Branch     = 1'b0;
+                PCUpdate   = 1'b1;
+                RegWrite   = 1'b0;
+                MemWrite   = 1'b0;
+                ResultSrc  = 2'b10;
+                ALUSrcA    = 2'b00;
+                ALUSrcB    = 2'b10;
+                ALUop      = 2'b00;
+            end : Fetch
+            S1:
+            begin : Decode
+                AdrSrc     = 1'b0;
+                IRWrite    = 1'b0;
+                Branch     = 1'b0;
+                PCUpdate   = 1'b0;
+                RegWrite   = 1'b0;
+                MemWrite   = 1'b0;
+                ResultSrc  = 2'b00;
+                ALUSrcA    = 2'b01;
+                ALUSrcB    = 2'b01;
+                ALUop      = 2'b00;
+            end : Decode
+            S2:
+            begin : MemAdr
+                AdrSrc     = 1'b0;
+                IRWrite    = 1'b0;
+                Branch     = 1'b0;
+                PCUpdate   = 1'b0;
+                RegWrite   = 1'b0;
+                MemWrite   = 1'b0;
+                ResultSrc  = 2'b00;
+                ALUSrcA    = 2'b10;
+                ALUSrcB    = 2'b01;
+                ALUop      = 2'b00;
+            end : MemAdr
+            S3:
+            begin : MemRead
+                AdrSrc     = 1'b1;
+                IRWrite    = 1'b0;
+                Branch     = 1'b0;
+                PCUpdate   = 1'b0;
+                RegWrite   = 1'b0;
+                MemWrite   = 1'b0;
+                ResultSrc  = 2'b00;
+                ALUSrcA    = 2'b00;
+                ALUSrcB    = 2'b00;
+                ALUop      = 2'b00;
+            end : MemRead
+            S4:
+            begin : MemWB
+                AdrSrc     = 1'b0;
+                IRWrite    = 1'b0;
+                Branch     = 1'b0;
+                PCUpdate   = 1'b0;
+                RegWrite   = 1'b1;
+                MemWrite   = 1'b0;
+                ResultSrc  = 2'b01;
+                ALUSrcA    = 2'b00;
+                ALUSrcB    = 2'b00;
+                ALUop      = 2'b00;
+            end : MemWB
+            S5: 
+            begin : S5_MemWrite
+                AdrSrc     = 1'b1;
+                IRWrite    = 1'b0;
+                Branch     = 1'b0;
+                PCUpdate   = 1'b0;
+                RegWrite   = 1'b0;
+                MemWrite   = 1'b1;
+                ResultSrc  = 2'b00;
+                ALUSrcA    = 2'b00;
+                ALUSrcB    = 2'b00;
+                ALUop      = 2'b00;
+            end : S5_MemWrite
+            S6: 
+            begin : ExecuteR
+                AdrSrc     = 1'b0;
+                IRWrite    = 1'b0;
+                Branch     = 1'b0;
+                PCUpdate   = 1'b0;
+                RegWrite   = 1'b0;
+                MemWrite   = 1'b0;
+                ResultSrc  = 2'b00;
+                ALUSrcA    = 2'b10;
+                ALUSrcB    = 2'b00;
+                ALUop      = 2'b10;
+            end : ExecuteR
+            S7: 
+            begin : ALUWB
+                AdrSrc     = 1'b0;
+                IRWrite    = 1'b0;
+                Branch     = 1'b0;
+                PCUpdate   = 1'b0;
+                RegWrite   = 1'b1;
+                MemWrite   = 1'b0;
+                ResultSrc  = 2'b00;
+                ALUSrcA    = 2'b00;
+                ALUSrcB    = 2'b00;
+                ALUop      = 2'b00;
+            end : ALUWB
+            S8: 
+            begin : ExecuteI
+                AdrSrc     = 1'b0;
+                IRWrite    = 1'b0;
+                Branch     = 1'b0;
+                PCUpdate   = 1'b0;
+                RegWrite   = 1'b0;
+                MemWrite   = 1'b0;
+                ResultSrc  = 2'b00;
+                ALUSrcA    = 2'b10;
+                ALUSrcB    = 2'b01;
+                ALUop      = 2'b10;
+            end : ExecuteI
+            S9: 
+            begin : JAL
+                AdrSrc     = 1'b0;
+                IRWrite    = 1'b0;
+                Branch     = 1'b0;
+                PCUpdate   = 1'b1;
+                RegWrite   = 1'b0;
+                MemWrite   = 1'b0;
+                ResultSrc  = 2'b00;
+                ALUSrcA    = 2'b01;
+                ALUSrcB    = 2'b10;
+                ALUop      = 2'b00;
+            end : JAL
+            S10: 
+            begin : BEQ
+                AdrSrc     = 1'b0;
+                IRWrite    = 1'b0;
+                Branch     = 1'b1;
+                PCUpdate   = 1'b0;
+                RegWrite   = 1'b1;
+                MemWrite   = 1'b0;
+                ResultSrc  = 2'b00;
+                ALUSrcA    = 2'b10;
+                ALUSrcB    = 2'b00;
+                ALUop      = 2'b01;
+            end : BEQ
+        endcase
     end
 
 endmodule : main_fsm
